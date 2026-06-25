@@ -1,0 +1,41 @@
+# ── أسرار وبيانات حساسة (لا تُرفع أبداً) ──────────────────
+**/.app_runtime
+**/.env
+**/.env.*
+!**/.env.example
+Bot/backend/.wa_session_data/
+*.pem
+*.key
+
+# ── Node ──────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+
+# ── Next.js (الموقع التسويقي) ──────────────────────────────
+.next/
+out/
+
+# ── Vite (فرونت إند البوت) ──────────────────────────────────
+Bot/frontend/dist/
+
+# ── Logs و PID وملفات التشغيل المحلية ────────────────────────
+.logs/
+*.log
+.bot.pid
+.web.pid
+.bot.log
+.web.log
+
+# ── أنظمة التشغيل/المحررات ───────────────────────────────────
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# ── ملفات بناء عامة ───────────────────────────────────────────
+dist/
+build/
+.app_runtime
+node_modules
+.next
+Bot/frontend/dist

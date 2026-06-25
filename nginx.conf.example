@@ -1,0 +1,156 @@
+# ═══════════════════════════════════════════════════════════
+#  nginx.conf.example — Nginx Reverse Proxy for ZIbot
+#
+#  ملاحظات:
+#  - البوت (Express):   http://localhost:3000
+#  - الموقع (Next.js):  http://localhost:3001
+#
+#  التثبيت:
+#    sudo cp nginx.conf.example /etc/nginx/sites-available/zibot
+#    sudo ln -s /etc/nginx/sites-available/zibot /etc/nginx/sites-enabled/
+#    sudo nginx -t && sudo systemctl reload nginx
+#
+#  SSL (Let's Encrypt):
+#    sudo apt install certbot python3-certbot-nginx
+#    sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
+# ═══════════════════════════════════════════════════════════
+
+# ─── Rate limiting zones ────────────────────────────────────
+limit_req_zone $binary_remote_addr zone=api:10m rate=30r/m;
+limit_req_zone $binary_remote_addr zone=web:10m rate=100r/m;
+limit_conn_zone $binary_remote_addr zone=conn:10m;
+
+# ─── الموقع التسويقي (Next.js) ──────────────────────────────
+server {
+    listen 80;
+    listen [::]:80;
+    server_name yourdomain.com www.yourdomain.com;
+
+    # إعادة التوجيه لـ HTTPS (يملأها certbot تلقائياً)
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name yourdomain.com www.yourdomain.com;
+
+    # SSL (certbot يملأ هذا)
+    # ssl_certificate     /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+    # include /etc/letsencrypt/options-ssl-nginx.conf;
+    # ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # حماية أساسية
+    add_header X-Frame-Options            "DENY"               always;
+    add_header X-Content-Type-Options     "nosniff"            always;
+    add_header X-XSS-Protection           "0"                  always;
+    add_header Referrer-Policy            "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy         "camera=(), microphone=(), geolocation=()" always;
+    add_header Strict-Transport-Security  "max-age=63072000; includeSubDomains; preload" always;
+
+    # ─── Gzip ─────────────────────────────────────────────────
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css application/json application/javascript
+               text/xml application/xml image/svg+xml;
+
+    # ─── حد الاتصالات ─────────────────────────────────────────
+    limit_conn conn 20;
+
+    # ─── Block malicious bots ─────────────────────────────────
+    if ($http_user_agent ~* (sqlmap|nikto|nessus|masscan|nuclei|acunetix|burpsuite|dirbuster)) {
+        return 403;
+    }
+
+    # ─── حجب الملفات الحساسة ──────────────────────────────────
+    location ~* \.(env|git|sql|bak|log|sh|key|pem)$ {
+        return 403;
+    }
+
+    # ─── الموقع التسويقي ──────────────────────────────────────
+    location / {
+        limit_req zone=web burst=50 nodelay;
+        proxy_pass         http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade          $http_upgrade;
+        proxy_set_header   Connection       'upgrade';
+        proxy_set_header   Host             $host;
+        proxy_set_header   X-Real-IP        $remote_addr;
+        proxy_set_header   X-Forwarded-For  $remote_addr; # Fix #2: replace (not append) so Express trust proxy:1 sees only the real client IP
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 30s;
+        proxy_connect_timeout 10s;
+    }
+
+    # ─── Static assets cache ──────────────────────────────────
+    location ~* \.(ico|png|jpg|jpeg|svg|webp|woff2|woff|ttf|eot)$ {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_set_header Host $host;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        access_log off;
+    }
+}
+
+# ─── البوت (Express + داشبورد) ──────────────────────────────
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name bot.yourdomain.com;
+
+    # SSL (certbot يملأ هذا)
+    # ssl_certificate     /etc/letsencrypt/live/bot.yourdomain.com/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/bot.yourdomain.com/privkey.pem;
+    # include /etc/letsencrypt/options-ssl-nginx.conf;
+
+    add_header X-Frame-Options            "DENY"               always;
+    add_header X-Content-Type-Options     "nosniff"            always;
+    add_header Strict-Transport-Security  "max-age=63072000; includeSubDomains; preload" always;
+
+    gzip on;
+    gzip_types text/plain application/json application/javascript text/css;
+
+    limit_conn conn 10;
+
+    # ─── حجب المسارات الحساسة (حماية مضاعفة) ─────────────────
+    location ~* \.(env|app_runtime|git|sql|bak|log|sh|key|pem)$ {
+        return 403;
+    }
+    location ~ /\.  { return 403; }
+
+    # ─── API ──────────────────────────────────────────────────
+    location /api/ {
+        limit_req zone=api burst=20 nodelay;
+        proxy_pass         http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header   Host             $host;
+        proxy_set_header   X-Real-IP        $remote_addr;
+        proxy_set_header   X-Forwarded-For  $remote_addr; # Fix #2: replace (not append) so Express trust proxy:1 sees only the real client IP
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+        proxy_connect_timeout 10s;
+        client_max_body_size 10k;
+    }
+
+    # ─── Health check ─────────────────────────────────────────
+    location /health {
+        proxy_pass http://127.0.0.1:3000;
+        access_log off;
+    }
+
+    # ─── الداشبورد (React SPA) ────────────────────────────────
+    location / {
+        limit_req zone=web burst=30 nodelay;
+        proxy_pass         http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade          $http_upgrade;
+        proxy_set_header   Connection       'upgrade';
+        proxy_set_header   Host             $host;
+        proxy_set_header   X-Real-IP        $remote_addr;
+        proxy_set_header   X-Forwarded-For  $remote_addr; # Fix #2: replace (not append) so Express trust proxy:1 sees only the real client IP
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 30s;
+    }
+}

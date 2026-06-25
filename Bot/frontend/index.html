@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ZIbot — مساعدك الذكي للبيزنس</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>" />
+
+    <!-- ══ خطوط: preconnect أولاً ثم preload ══ -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" as="style"
+          href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&display=swap" />
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&display=swap"
+          rel="stylesheet" />
+
+    <!-- ══ صور وسائل الدفع — أولوية قصوى تُحمَّل قبل أي شيء ══ -->
+    <link rel="preload" as="image" href="/payments/whatsapp.jpg"      type="image/jpeg" fetchpriority="high" />
+    <link rel="preload" as="image" href="/payments/vodafone-cash.jpg"  type="image/jpeg" fetchpriority="high" />
+    <link rel="preload" as="image" href="/payments/etisalat-cash.jpg"  type="image/jpeg" fetchpriority="high" />
+    <link rel="preload" as="image" href="/payments/orange-cash.jpg"    type="image/jpeg" fetchpriority="high" />
+
+    <!--
+      ═══════════════════════════════════════════════════════
+       Script مبكر لمنع Theme Flash وضبط اللغة/الاتجاه
+       يجب أن يكون INLINE هنا قبل أي شيء آخر
+      ═══════════════════════════════════════════════════════
+    -->
+    <script>
+      (function () {
+        // ── الثيم ──────────────────────────────────────────
+        try {
+          var saved = localStorage.getItem('zi_theme') || 'system';
+          var isLight = saved === 'light' ||
+            (saved !== 'dark' && window.matchMedia('(prefers-color-scheme: light)').matches);
+
+          if (isLight) {
+            // نضيف style مباشرة في <head> قبل render
+            var s = document.createElement('style');
+            s.id = 'zi-light-theme';
+            s.textContent = ':root{--bg:#f4f4f9;--surface:#ffffff;--surface2:#eeeef6;--surface3:#e4e4f0;--border:#d0d0e0;--border2:#bebece;--text:#1a1a2e;--text-muted:#5a5a80;--text-subtle:#9090b0;--shadow:0 4px 24px rgba(0,0,0,0.08);--shadow-sm:0 2px 12px rgba(0,0,0,0.06);--shadow-lg:0 8px 48px rgba(0,0,0,0.12);}body{background:var(--bg)!important;}';
+            document.head.appendChild(s);
+          }
+        } catch (e) {}
+
+        // ── اللغة / الاتجاه ────────────────────────────────
+        try {
+          var lang = localStorage.getItem('zi_lang');
+          if (!lang) {
+            var nav = navigator.language || '';
+            lang = nav.toLowerCase().startsWith('ar') ? 'ar' : 'en';
+          }
+          document.documentElement.lang = lang;
+          document.documentElement.dir  = lang === 'ar' ? 'rtl' : 'ltr';
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/main.jsx"></script>
+  </body>
+</html>
